@@ -2,7 +2,7 @@
 Billigaste laddstart - Herrgårdsbacken
 
 Vi har i vår förening ett rörligt pris för laddning av våra elbilar i garaget. (Spotpris SE3, + föreningens kostnader/kWh)
-Vi betalar alltså som om vi "bor i egen villa". Vill jaag hålla mina kostnader nere? Javisst.
+Vi betalar alltså som om vi "bor i egen villa". Vill jag hålla mina kostnader nere? Javisst.
 
 Jag skapade denna web-lösning för jag ville:
 - Se laddkostnaden uttryckt i kronor och ören för min laddsession, inte bara starttidpunkt för SmartLaddning i MontaCharge.
