@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laddkollen – Herrgårdsbacken</title>
+<style>
+  :root {
+    --blue: #2196f3;
+    --blue-bg: rgba(33, 150, 243, 0.10);
+    --blue-border: rgba(33, 150, 243, 0.35);
+    --green: #2e9d5b;
+    --orange: #e67e22;
+    --text: #263238;
+    --muted: #607d8b;
+    --line: #cfd8dc;
+    --bg: #f4f6f8;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 18px;
+    line-height: 1.4;
+    color: var(--text);
+    background: var(--bg);
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 14px 40px; }
+  header h1 { margin: 4px 0 0; font-size: 1.7rem; }
+  header p { margin: 2px 0 14px; color: var(--muted); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 1.15rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.95rem; color: var(--muted); }
+  input, select {
+    font: inherit;
+    font-size: 1.15rem;
+    color: var(--text);
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    width: 100%;
+  }
+  .stepper { display: flex; gap: 6px; }
+  .stepper input { text-align: center; }
+  .stepper button {
+    font: inherit; font-size: 1.3rem; width: 48px; flex: none;
+    border: 1px solid var(--line); border-radius: 10px; background: #fafafa; color: var(--text);
+  }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .facts div {
+    background: var(--blue-bg); border: 1px solid var(--blue-border);
+    border-radius: 10px; padding: 10px;
+  }
+  .facts span { display: block; font-size: 0.85rem; color: var(--muted); }
+  .facts b { font-size: 1.25rem; }
+  .result { background: var(--blue-bg); border-color: var(--blue-border); }
+  .result .headline { color: var(--blue); font-size: 1.3rem; font-weight: 700; margin: 0 0 4px; }
+  .result .best { font-size: 2rem; font-weight: 700; margin: 0; }
+  .result .best.tomorrow { color: var(--orange); }
+  .result .bestcost { margin: 0 0 12px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 8px 4px; border-bottom: 1px solid var(--blue-border); }
+  tr:last-child td { border-bottom: none; }
+  td.v { text-align: right; font-weight: 700; white-space: nowrap; }
+  .btn {
+    display: block; width: 100%; margin-top: 14px; padding: 14px;
+    font: inherit; font-weight: 700; color: #fff; background: var(--blue);
+    border: none; border-radius: 12px;
+  }
+  .timepick { display: flex; align-items: center; gap: 8px; border: 2px solid var(--blue); border-radius: 12px; padding: 10px; }
+  .timepick select { font-size: 1.6rem; text-align: center; color: #424242; }
+  .timepick span { font-size: 1.6rem; font-weight: 700; color: #424242; }
+  .chosen { margin: 12px 0 0; }
+  .chosen b { font-size: 1.3rem; }
+  .status { color: var(--muted); font-size: 0.9rem; margin: 8px 0 0; }
+  .error { color: #c0392b; }
+  #chart svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; gap: 14px; font-size: 0.85rem; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .check { flex-direction: row; align-items: center; gap: 10px; margin-top: 12px; }
+  .check input { width: 22px; height: 22px; }
+  footer { font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 18px; }
+  footer a { color: var(--muted); }
+  @media (max-width: 380px) { .grid2, .facts { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Laddkollen</h1>
+    <p>Billigaste laddstart i garaget – Herrgårdsbacken (SE3)</p>
+  </header>
+
+  <section class="card">
+    <h2>Din bil</h2>
+    <div class="grid2">
+      <label>Laddnivå nu (%)
+        <div class="stepper">
+          <button type="button" data-step="-5" data-for="current">−</button>
+          <input id="current" type="number" inputmode="numeric" min="0" max="100" step="1" value="30">
+          <button type="button" data-step="5" data-for="current">+</button>
+        </div>
+      </label>
+      <label>Önskad laddnivå
+        <select id="target">
+          <option value="60">60 %</option>
+          <option value="70">70 %</option>
+          <option value="80" selected>80 %</option>
+          <option value="90">90 %</option>
+          <option value="100">100 %</option>
+        </select>
+      </label>
+    </div>
+    <div class="facts">
+      <div><span>Energibehov</span><b id="needOut">–</b></div>
+      <div><span>Laddtid</span><b id="durOut">–</b></div>
+    </div>
+  </section>
+
+  <section class="card result">
+    <p class="headline">Jag kan ladda billigt!</p>
+    <div>Billigaste laddstart</div>
+    <p class="best" id="bestOut">–</p>
+    <p class="bestcost" id="bestCostOut"></p>
+    <table>
+      <tr><td>Kostnad om du startar NU</td><td class="v" id="nowOut">–</td></tr>
+      <tr><td>Besparing genom att vänta</td><td class="v" id="waitOut">–</td></tr>
+      <tr><td>Möjlig besparing totalt</td><td class="v" id="maxOut">–</td></tr>
+    </table>
+    <button class="btn" id="useBest" type="button">Välj billigaste starttid nedan</button>
+  </section>
+
+  <section class="card">
+    <h2>Jag vill starta laddning kl</h2>
+    <div class="timepick">
+      <select id="hh" aria-label="Timme"></select><span>:</span><select id="mm" aria-label="Minut"></select>
+    </div>
+    <p class="chosen">Beräknad kostnad: <b id="chosenCost">–</b><br>
+      <span id="chosenInfo" class="status"></span></p>
+  </section>
+
+  <section class="card">
+    <h2>Laddpris – 48 timmar</h2>
+    <div id="chart"></div>
+    <div class="legend">
+      <span><i style="background:#2196f3"></i>Laddpris kr/kWh</span>
+      <span><i style="background:#2e9d5b"></i>Billigaste laddperiod</span>
+      <span><i style="background:#ff9800"></i>Nu</span>
+    </div>
+    <label class="check"><input type="checkbox" id="quarter"> Räkna med kvartspriser (15 min)</label>
+    <p class="status" id="status">Hämtar priser…</p>
+  </section>
+
+  <section class="card">
+    <h2>Bilens inställningar</h2>
+    <div class="grid2">
+      <label>Batteristorlek (kWh)
+        <input id="battery" type="number" inputmode="decimal" min="5" max="200" step="1" value="64">
+      </label>
+      <label>Laddeffekt
+        <select id="power">
+          <option value="3.7">3,7 kW</option>
+          <option value="7.4">7,4 kW</option>
+          <option value="11" selected>11 kW</option>
+          <option value="22">22 kW</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <footer>
+    Laddpris = spotpris + nät, skatt, moms och BRF-påslag.<br>
+    Dina uppgifter sparas bara i din egen mobil.<br>
+    <a href="https://www.elprisetjustnu.se" target="_blank" rel="noopener">Elpriser tillhandahålls av Elpriset just nu.se</a>
+  </footer>
+</main>
+
+<script>
+/*CALC-START*/
+// Samma konstanter som i Home Assistant-optimeraren.
+const PRIS = {
+  tillaggForeMoms: 0.7242,  // kr/kWh som läggs på spotpriset före moms
+  moms: 1.25,
+  brfPaslag: 0.39,          // kr/kWh
+  faktor: 1.02,
+  laddforlust: 0.09         // 9 %
+};
+
+function laddpris(spot) {
+  return ((spot + PRIS.tillaggForeMoms) * PRIS.moms + PRIS.brfPaslag) * PRIS.faktor;
+}
+
+// prices: [{t0, t1, spot}] med tider i sekunder (epoch). Returnerar kostnad eller null.
+function kostnad(prices, start, durationS, powerKw) {
+  const finish = start + durationS;
+  let covered = 0, cost = 0;
+  for (const p of prices) {
+    const a = Math.max(start, p.t0);
+    const b = Math.min(finish, p.t1);
+    if (b > a) {
+      const s = b - a;
+      covered += s;
+      cost += powerKw * s / 3600 * laddpris(p.spot);
+    }
+  }
+  return durationS > 0 && covered >= durationS - 1 ? cost : null;
+}
+
+function optimera(prices, nowS, durationS, powerKw) {
+  const cand = new Set([nowS]);
+  for (const p of prices) {
+    cand.add(p.t0); cand.add(p.t1);
+    cand.add(p.t0 - durationS); cand.add(p.t1 - durationS);
+  }
+  const res = { best: null, bestCost: null, worst: null, worstCost: null };
+  if (durationS <= 0) return res;
+  for (const c of [...cand].sort((x, y) => x - y)) {
+    if (c < nowS) continue;
+    const k = kostnad(prices, c, durationS, powerKw);
+    if (k === null) continue;
+    if (res.bestCost === null || k < res.bestCost) { res.best = c; res.bestCost = k; }
+    if (res.worstCost === null || k > res.worstCost) { res.worst = c; res.worstCost = k; }
+  }
+  return res;
+}
+
+// raw: poster från elprisetjustnu.se. hourly=true slår ihop kvartar till timsnitt (som HA, resolution 60).
+function normalisera(raw, hourly) {
+  const list = raw.map(r => ({
+    t0: Date.parse(r.time_start) / 1000,
+    t1: Date.parse(r.time_end) / 1000,
+    spot: Number(r.SEK_per_kWh)
+  })).sort((a, b) => a.t0 - b.t0);
+  if (!hourly) return list;
+  const m = new Map();
+  for (const p of list) {
+    const h = Math.floor(p.t0 / 3600) * 3600;
+    const e = m.get(h) || { sum: 0, w: 0 };
+    const w = p.t1 - p.t0;
+    e.sum += p.spot * w; e.w += w;
+    m.set(h, e);
+  }
+  return [...m.entries()].sort((a, b) => a[0] - b[0])
+    .map(([h, e]) => ({ t0: h, t1: h + 3600, spot: e.sum / e.w }));
+}
+/*CALC-END*/
+
+const $ = id => document.getElementById(id);
+const TZ = 'Europe/Stockholm';
+const fmtTime = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+const fmtDay = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const fmtWeekday = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, weekday: 'long' });
+
+let rawPrices = [];
+let lastBest = null;
+
+function dagStr(d) { return fmtDay.format(d); }  // "2026-11-18"
+function kr(v) { return v === null || isNaN(v) ? '–' : Math.round(v) + ' kr'; }
+function visaTid(ts) {
+  const d = new Date(ts * 1000);
+  const idag = dagStr(new Date());
+  const imorgon = dagStr(new Date(Date.now() + 86400000));
+  const dag = dagStr(d);
+  const t = fmtTime.format(d);
+  if (dag === idag) return { text: 'Idag ' + t, tomorrow: false };
+  if (dag === imorgon) return { text: 'I morgon ' + t, tomorrow: true };
+  return { text: fmtWeekday.format(d) + ' ' + t, tomorrow: true };
+}
+
+function lasInput() {
+  const current = Math.min(100, Math.max(0, Number($('current').value) || 0));
+  const target = Number($('target').value);
+  const battery = Math.max(0, Number($('battery').value) || 0);
+  const power = Number($('power').value);
+  const toBattery = Math.max(0, battery * (target - current) / 100);
+  const fromCharger = toBattery / (1 - PRIS.laddforlust);
+  const durationS = power > 0 ? fromCharger / power * 3600 : 0;
+  return { current, target, battery, power, toBattery, fromCharger, durationS };
+}
+
+function valdStart() {
+  const now = new Date();
+  const d = new Date(now);
+  d.setHours(Number($('hh').value), Number($('mm').value), 0, 0);
+  if (d <= now) d.setDate(d.getDate() + 1);
+  return d.getTime() / 1000;
+}
+
+function spara() {
+  try {
+    localStorage.setItem('laddkollen', JSON.stringify({
+      current: $('current').value, target: $('target').value, battery: $('battery').value,
+      power: $('power').value, hh: $('hh').value, mm: $('mm').value, quarter: $('quarter').checked
+    }));
+  } catch (e) {}
+}
+function ladda() {
+  try {
+    const s = JSON.parse(localStorage.getItem('laddkollen') || 'null');
+    if (!s) return;
+    for (const k of ['current', 'target', 'battery', 'power', 'hh', 'mm']) if (s[k] !== undefined) $(k).value = s[k];
+    $('quarter').checked = !!s.quarter;
+  } catch (e) {}
+}
+
+function rakna() {
+  const inp = lasInput();
+  const prices = normalisera(rawPrices, !$('quarter').checked);
+  const nowS = Date.now() / 1000;
+
+  $('needOut').textContent = Math.round(inp.toBattery) + ' kWh';
+  const min = Math.round(inp.durationS / 60);
+  $('durOut').textContent = inp.durationS > 0 ? Math.floor(min / 60) + ' h ' + String(min % 60).padStart(2, '0') + ' min' : '–';
+
+  if (!prices.length) { ritaDiagram([], null, null, nowS); return; }
+
+  const opt = optimera(prices, nowS, inp.durationS, inp.power);
+  const nu = kostnad(prices, nowS, inp.durationS, inp.power);
+  lastBest = opt.best;
+
+  if (inp.durationS <= 0) {
+    $('bestOut').textContent = 'Ingen laddning behövs';
+    $('bestOut').classList.remove('tomorrow');
+    $('bestCostOut').textContent = '';
+  } else if (opt.best === null) {
+    $('bestOut').textContent = 'Ingen giltig period';
+    $('bestOut').classList.remove('tomorrow');
+    $('bestCostOut').textContent = 'Laddningen räcker längre än de priser som finns. Morgondagens priser kommer ca kl 13.';
+  } else {
+    const v = visaTid(opt.best);
+    $('bestOut').textContent = (v.tomorrow ? '⚠ ' : '') + v.text;
+    $('bestOut').classList.toggle('tomorrow', v.tomorrow);
+    $('bestCostOut').textContent = 'Kostnad vid billigaste start: ' + kr(opt.bestCost);
+  }
+  $('nowOut').textContent = kr(nu);
+  $('waitOut').textContent = nu !== null && opt.bestCost !== null ? kr(nu - opt.bestCost) : '–';
+  $('maxOut').textContent = opt.worstCost !== null && opt.bestCost !== null ? kr(opt.worstCost - opt.bestCost) : '–';
+  $('useBest').disabled = opt.best === null;
+
+  const vs = valdStart();
+  const vk = kostnad(prices, vs, inp.durationS, inp.power);
+  $('chosenCost').textContent = vk === null ? (inp.durationS > 0 ? 'priser saknas än' : '–') : kr(vk);
+  const vsTxt = visaTid(vs).text;
+  $('chosenInfo').textContent = inp.durationS > 0
+    ? 'Start ' + vsTxt.toLowerCase() + ', klar ca ' + fmtTime.format(new Date((vs + inp.durationS) * 1000))
+    : '';
+
+  ritaDiagram(prices, opt.best, inp.durationS, nowS);
+}
+
+function ritaDiagram(prices, best, durationS, nowS) {
+  const el = $('chart');
+  if (!prices.length) { el.innerHTML = ''; return; }
+  const start = Math.floor(new Date(new Date().setHours(0, 0, 0, 0)).getTime() / 1000);
+  const end = start + 48 * 3600;
+  const W = 600, H = 240, L = 34, R = 6, T = 10, B = 26;
+  const pw = W - L - R, ph = H - T - B;
+  const vis = prices.filter(p => p.t1 > start && p.t0 < end);
+  const vals = vis.map(p => laddpris(p.spot));
+  const maxV = Math.max(2, Math.ceil(Math.max(...vals)));
+  const x = t => L + (t - start) / (end - start) * pw;
+  const y = v => T + ph - Math.max(0, v) / maxV * ph;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Laddpris 48 timmar">`;
+  for (let v = 0; v <= maxV; v++) {
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#b0bec5" stroke-dasharray="3 4" stroke-width="1"/>`;
+    s += `<text x="${L - 6}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="#607d8b">${v}</text>`;
+  }
+  const bestEnd = best !== null ? best + durationS : null;
+  vis.forEach((p, i) => {
+    const x0 = x(Math.max(p.t0, start)), x1 = x(Math.min(p.t1, end));
+    const w = Math.max(1, (x1 - x0) * 0.85);
+    const inBest = best !== null && p.t1 > best && p.t0 < bestEnd;
+    s += `<rect x="${x0}" y="${y(vals[i])}" width="${w}" height="${Math.max(0, y(0) - y(vals[i]))}" fill="${inBest ? '#2e9d5b' : '#2196f3'}" rx="1"><title>${fmtTime.format(new Date(p.t0 * 1000))}: ${vals[i].toFixed(2)} kr/kWh</title></rect>`;
+  });
+  for (let h = 0; h <= 48; h += 6) {
+    const t = start + h * 3600;
+    const lbl = h === 24 ? 'i morgon' : fmtTime.format(new Date(t * 1000));
+    s += `<text x="${x(t)}" y="${H - 8}" font-size="11" text-anchor="middle" fill="#607d8b">${lbl}</text>`;
+  }
+  if (nowS >= start && nowS <= end) {
+    s += `<line x1="${x(nowS)}" x2="${x(nowS)}" y1="${T}" y2="${T + ph}" stroke="#ff9800" stroke-width="2"/>`;
+    s += `<text x="${x(nowS) + 4}" y="${T + 12}" font-size="11" fill="#e67e22">Nu</text>`;
+  }
+  s += `<text x="4" y="${T + 10}" font-size="10" fill="#607d8b">kr</text></svg>`;
+  el.innerHTML = s;
+}
+
+async function hamtaDag(d) {
+  const [y, m, dd] = dagStr(d).split('-');
+  const r = await fetch(`https://www.elprisetjustnu.se/api/v1/prices/${y}/${m}-${dd}_SE3.json`, { cache: 'no-store' });
+  if (!r.ok) return [];
+  return r.json();
+}
+
+async function hamtaPriser() {
+  try {
+    const idag = await hamtaDag(new Date());
+    let imorgon = [];
+    try { imorgon = await hamtaDag(new Date(Date.now() + 86400000)); } catch (e) {}
+    rawPrices = [...idag, ...imorgon];
+    $('status').classList.remove('error');
+    $('status').textContent = rawPrices.length
+      ? 'Priser hämtade ' + fmtTime.format(new Date()) + (imorgon.length ? ' (idag + i morgon).' : ' (idag – morgondagens kommer ca kl 13).')
+      : 'Inga priser hittades just nu.';
+  } catch (e) {
+    $('status').classList.add('error');
+    $('status').textContent = 'Kunde inte hämta priser. Kontrollera internetanslutningen och ladda om sidan.';
+  }
+  rakna();
+}
+
+function init() {
+  for (let h = 0; h < 24; h++) $('hh').add(new Option(String(h).padStart(2, '0'), h));
+  for (const m of [0, 15, 30, 45]) $('mm').add(new Option(String(m).padStart(2, '0'), m));
+  $('hh').value = 22; $('mm').value = 0;
+  ladda();
+
+  document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+    const inp = $(b.dataset.for);
+    inp.value = Math.min(100, Math.max(0, (Number(inp.value) || 0) + Number(b.dataset.step)));
+    spara(); rakna();
+  }));
+  ['current', 'target', 'battery', 'power', 'hh', 'mm', 'quarter'].forEach(id => {
+    $(id).addEventListener('input', () => { spara(); rakna(); });
+    $(id).addEventListener('change', () => { spara(); rakna(); });
+  });
+  $('useBest').addEventListener('click', () => {
+    if (lastBest === null) return;
+    // Avrunda uppåt till närmaste kvart så att starten aldrig hamnar före billigaste tid.
+    const q = Math.ceil(lastBest / 900) * 900;
+    const d = new Date(q * 1000);
+    $('hh').value = d.getHours(); $('mm').value = d.getMinutes();
+    spara(); rakna();
+  });
+
+  hamtaPriser();
+  setInterval(hamtaPriser, 15 * 60 * 1000);
+  setInterval(rakna, 60 * 1000);
+}
+init();
+</script>
+</body>
+</html>
