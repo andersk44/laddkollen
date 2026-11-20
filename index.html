@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Laddkollen – Herrgårdsbacken</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1976d2">
 <style>
   :root {
     --blue: #2196f3;
@@ -83,7 +87,15 @@
   .chosen b { font-size: 1.3rem; }
   .status { color: var(--muted); font-size: 0.9rem; margin: 8px 0 0; }
   .error { color: #c0392b; }
-  #chart svg { width: 100%; height: auto; display: block; }
+  #chart { position: relative; }
+  #chart svg { width: 100%; height: auto; display: block; touch-action: pan-y; cursor: crosshair; }
+  .tip {
+    position: absolute; top: 0; pointer-events: none;
+    background: #263238; color: #fff; border-radius: 8px;
+    padding: 6px 10px; font-size: 0.9rem; line-height: 1.3; white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
+  .tip b { font-size: 1.05rem; }
   .legend { display: flex; gap: 14px; font-size: 0.85rem; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .check { flex-direction: row; align-items: center; gap: 10px; margin-top: 12px; }
@@ -180,7 +192,8 @@
   <footer>
     Laddpris = spotpris + nät, skatt, moms och BRF-påslag.<br>
     Dina uppgifter sparas bara i din egen mobil.<br>
-    <a href="https://www.elprisetjustnu.se" target="_blank" rel="noopener">Elpriser tillhandahålls av Elpriset just nu.se</a>
+    <a href="https://www.elprisetjustnu.se" target="_blank" rel="noopener">Elpriser tillhandahålls av Elpriset just nu.se</a><br>
+    <a href="https://github.com/andersk44/laddkollen/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Laddkollen v1.2.2</a>
   </footer>
 </main>
 
@@ -379,7 +392,7 @@ function ritaDiagram(prices, best, durationS, nowS) {
     const x0 = x(Math.max(p.t0, start)), x1 = x(Math.min(p.t1, end));
     const w = Math.max(1, (x1 - x0) * 0.85);
     const inBest = best !== null && p.t1 > best && p.t0 < bestEnd;
-    s += `<rect x="${x0}" y="${y(vals[i])}" width="${w}" height="${Math.max(0, y(0) - y(vals[i]))}" fill="${inBest ? '#2e9d5b' : '#2196f3'}" rx="1"><title>${fmtTime.format(new Date(p.t0 * 1000))}: ${vals[i].toFixed(2)} kr/kWh</title></rect>`;
+    s += `<rect x="${x0}" y="${y(vals[i])}" width="${w}" height="${Math.max(0, y(0) - y(vals[i]))}" fill="${inBest ? '#2e9d5b' : '#2196f3'}" rx="1"/>`;
   });
   for (let h = 0; h <= 48; h += 6) {
     const t = start + h * 3600;
@@ -390,8 +403,68 @@ function ritaDiagram(prices, best, durationS, nowS) {
     s += `<line x1="${x(nowS)}" x2="${x(nowS)}" y1="${T}" y2="${T + ph}" stroke="#ff9800" stroke-width="2"/>`;
     s += `<text x="${x(nowS) + 4}" y="${T + 12}" font-size="11" fill="#e67e22">Nu</text>`;
   }
+  s += `<rect id="hl" x="0" y="${T}" width="0" height="${ph}" fill="rgba(38,50,56,0.12)" visibility="hidden"/>`;
   s += `<text x="4" y="${T + 10}" font-size="10" fill="#607d8b">kr</text></svg>`;
   el.innerHTML = s;
+  chartState = { vis, vals, x, W, T, ph };
+  kopplaTooltip();
+}
+
+// Informationsruta vid tryck (mobil) eller muspekare (dator)
+let chartState = null;
+let valtStapelTs = null;
+let doljTip = () => {};
+// Tryck utanför diagrammet stänger informationsrutan
+document.addEventListener('pointerdown', e => { if (!$('chart').contains(e.target)) doljTip(); });
+
+function kopplaTooltip() {
+  const el = $('chart');
+  const svg = el.querySelector('svg');
+  if (!svg || !chartState) return;
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.style.display = 'none';
+  el.appendChild(tip);
+
+  const visa = idx => {
+    const { vis, vals, x, W } = chartState;
+    const p = vis[idx];
+    const hl = svg.querySelector('#hl');
+    const x0 = x(p.t0), x1 = x(p.t1);
+    hl.setAttribute('x', x0); hl.setAttribute('width', Math.max(1, x1 - x0));
+    hl.setAttribute('visibility', 'visible');
+    const dag = visaTid(p.t0).tomorrow ? 'I morgon ' : 'Idag ';
+    tip.innerHTML = `${dag}${fmtTime.format(new Date(p.t0 * 1000))}–${fmtTime.format(new Date(p.t1 * 1000))}<br><b>${vals[idx].toFixed(2).replace('.', ',')} kr/kWh</b>`;
+    tip.style.display = 'block';
+    const elW = el.clientWidth;
+    const cx = (x0 + x1) / 2 / W * elW;
+    const tw = tip.offsetWidth;
+    tip.style.left = Math.min(Math.max(0, cx - tw / 2), elW - tw) + 'px';
+    valtStapelTs = p.t0;
+  };
+  const dolj = () => {
+    tip.style.display = 'none';
+    const hl = svg.querySelector('#hl');
+    if (hl) hl.setAttribute('visibility', 'hidden');
+    valtStapelTs = null;
+  };
+  const hitta = clientX => {
+    const r = svg.getBoundingClientRect();
+    const sx = (clientX - r.left) / r.width * chartState.W;
+    return chartState.vis.findIndex(p => sx >= chartState.x(p.t0) && sx < chartState.x(p.t1));
+  };
+  const hantera = e => { const i = hitta(e.clientX); if (i >= 0) visa(i); };
+
+  svg.addEventListener('pointerdown', hantera);
+  svg.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' || e.buttons) hantera(e); });
+  svg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') dolj(); });
+  doljTip = dolj;
+
+  // Behåll vald stapel när diagrammet ritas om (varje minut)
+  if (valtStapelTs !== null) {
+    const i = chartState.vis.findIndex(p => p.t0 === valtStapelTs);
+    if (i >= 0) visa(i); else valtStapelTs = null;
+  }
 }
 
 async function hamtaDag(d) {
@@ -444,6 +517,8 @@ function init() {
 
   hamtaPriser();
   setInterval(hamtaPriser, 15 * 60 * 1000);
+  // Hämta färska priser när appen öppnas igen från hemskärmen
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) hamtaPriser(); });
   setInterval(rakna, 60 * 1000);
 }
 init();
