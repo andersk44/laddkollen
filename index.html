@@ -132,6 +132,7 @@
         </select>
       </label>
     </div>
+    <p class="status" id="haInfo" hidden></p>
     <div class="facts">
       <div><span>Energibehov</span><b id="needOut">–</b></div>
       <div><span>Laddtid</span><b id="durOut">–</b></div>
@@ -193,7 +194,7 @@
     Laddpris = spotpris + nät, skatt, moms och BRF-påslag.<br>
     Dina uppgifter sparas bara i din egen mobil.<br>
     <a href="https://www.elprisetjustnu.se" target="_blank" rel="noopener">Elpriser tillhandahålls av Elpriset just nu.se</a><br>
-    <a href="https://github.com/andersk44/laddkollen/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Laddkollen v1.2.2</a>
+    <a href="https://github.com/andersk44/laddkollen/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Laddkollen v1.3.0</a>
   </footer>
 </main>
 
@@ -323,6 +324,39 @@ function ladda() {
     for (const k of ['current', 'target', 'battery', 'power', 'hh', 'mm']) if (s[k] !== undefined) $(k).value = s[k];
     $('quarter').checked = !!s.quarter;
   } catch (e) {}
+}
+
+// Väljer det alternativ i en lista som har samma talvärde, eller lägger till ett nytt.
+function valjTal(select, n, etikett) {
+  for (const o of select.options) {
+    if (Number(o.value) === n) { select.value = o.value; return; }
+  }
+  const o = new Option(etikett, String(n));
+  select.add(o);
+  [...select.options].sort((a, b) => Number(a.value) - Number(b.value)).forEach(x => select.add(x));
+  select.value = String(n);
+}
+
+// Värden i länken, t.ex. ?soc=80&target=100&battery=74&power=11 (från Home Assistant)
+function lasLank() {
+  let p;
+  try { p = new URLSearchParams(location.search); } catch (e) { return; }
+  const tal = k => {
+    if (!p.has(k)) return null;
+    const v = Number(String(p.get(k)).replace(',', '.'));
+    return isFinite(v) ? v : null;
+  };
+  const soc = tal('soc'), target = tal('target'), battery = tal('battery'), power = tal('power');
+  if (soc === null && target === null && battery === null && power === null) return;
+  if (soc !== null) $('current').value = Math.round(Math.min(100, Math.max(0, soc)));
+  if (target !== null) valjTal($('target'), Math.round(Math.min(100, Math.max(0, target))), Math.round(target) + ' %');
+  if (battery !== null && battery > 0) $('battery').value = Math.round(battery * 10) / 10;
+  if (power !== null && power > 0) valjTal($('power'), power, String(power).replace('.', ',') + ' kW');
+  if (soc !== null) {
+    $('haInfo').textContent = '🔌 Laddnivå ' + Math.round(soc) + ' % hämtad från bilen via Home Assistant kl ' + fmtTime.format(new Date()) + '.';
+    $('haInfo').hidden = false;
+  }
+  spara();
 }
 
 function rakna() {
@@ -496,6 +530,7 @@ function init() {
   for (const m of [0, 15, 30, 45]) $('mm').add(new Option(String(m).padStart(2, '0'), m));
   $('hh').value = 22; $('mm').value = 0;
   ladda();
+  lasLank();
 
   document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
     const inp = $(b.dataset.for);
