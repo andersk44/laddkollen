@@ -98,6 +98,8 @@
   .tip b { font-size: 1.05rem; }
   .legend { display: flex; gap: 14px; font-size: 0.85rem; color: var(--muted); margin-top: 6px; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .plats { margin: 0 0 14px; }
+  .plats select { border: 2px solid var(--blue); font-weight: 700; }
   .check { flex-direction: row; align-items: center; gap: 10px; margin-top: 12px; }
   .check input { width: 22px; height: 22px; }
   footer { font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 18px; }
@@ -109,7 +111,10 @@
 <main>
   <header>
     <h1>Laddkollen</h1>
-    <p>Billigaste laddstart i garaget – Herrgårdsbacken (SE3)</p>
+    <p id="underrubrik">Billigaste laddstart i garaget – Herrgårdsbacken (SE3)</p>
+    <label id="platsWrap" class="plats" hidden>Laddplats
+      <select id="plats"></select>
+    </label>
   </header>
 
   <section class="card">
@@ -191,26 +196,44 @@
   </section>
 
   <footer>
-    Laddpris = spotpris + nät, skatt, moms och BRF-påslag.<br>
+    <span id="prisBeskrivning">Laddpris = spotpris + nät, skatt, moms och BRF-påslag.</span><br>
     Dina uppgifter sparas bara i din egen mobil.<br>
     <a href="https://www.elprisetjustnu.se" target="_blank" rel="noopener">Elpriser tillhandahålls av Elpriset just nu.se</a><br>
-    <a href="https://github.com/andersk44/laddkollen/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Laddkollen v1.3.0</a>
+    <a href="https://github.com/andersk44/laddkollen/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Laddkollen v1.4.0</a>
   </footer>
 </main>
 
 <script>
 /*CALC-START*/
-// Samma konstanter som i Home Assistant-optimeraren.
-const PRIS = {
-  tillaggForeMoms: 0.7242,  // kr/kWh som läggs på spotpriset före moms
-  moms: 1.25,
-  brfPaslag: 0.39,          // kr/kWh
-  faktor: 1.02,
-  laddforlust: 0.09         // 9 %
+// Laddpris per plats: ((spot + tillaggForeMoms) × moms + paslagEfterMoms) × faktor, i kr/kWh.
+// publik: false = platsen visas bara när den låsts upp via länken (?plats=...).
+const PLATSER = {
+  herrgardsbacken: {
+    namn: 'Herrgårdsbacken',
+    beskrivning: 'Laddpris = spotpris + nät, skatt, moms och BRF-påslag.',
+    tillaggForeMoms: 0.7242,  // kr/kWh
+    moms: 1.25,
+    paslagEfterMoms: 0.39,    // BRF-påslag, kr/kWh
+    faktor: 1.02,
+    publik: true
+  },
+  carintorpet: {
+    namn: 'Carintorpet',
+    beskrivning: 'Laddpris = spotpris + elhandel, elöverföring, energiskatt och moms (Mälarenergi).',
+    // Elhandel: rörliga kostnader 0,0372 + fast påslag 0,0290 + ursprung 0,0160
+    // Elnät: elöverföring 0,4320 + energiskatt 0,3600   (alla exkl. moms)
+    tillaggForeMoms: 0.8742,
+    moms: 1.25,
+    paslagEfterMoms: 0,
+    faktor: 1,
+    publik: false
+  }
 };
+const LADDFORLUST = 0.09;  // 9 %
+let PRIS = PLATSER.herrgardsbacken;
 
 function laddpris(spot) {
-  return ((spot + PRIS.tillaggForeMoms) * PRIS.moms + PRIS.brfPaslag) * PRIS.faktor;
+  return ((spot + PRIS.tillaggForeMoms) * PRIS.moms + PRIS.paslagEfterMoms) * PRIS.faktor;
 }
 
 // prices: [{t0, t1, spot}] med tider i sekunder (epoch). Returnerar kostnad eller null.
@@ -296,7 +319,7 @@ function lasInput() {
   const battery = Math.max(0, Number($('battery').value) || 0);
   const power = Number($('power').value);
   const toBattery = Math.max(0, battery * (target - current) / 100);
-  const fromCharger = toBattery / (1 - PRIS.laddforlust);
+  const fromCharger = toBattery / (1 - LADDFORLUST);
   const durationS = power > 0 ? fromCharger / power * 3600 : 0;
   return { current, target, battery, power, toBattery, fromCharger, durationS };
 }
@@ -309,11 +332,15 @@ function valdStart() {
   return d.getTime() / 1000;
 }
 
+let platsKey = 'herrgardsbacken';
+let privat = false;   // true = dolda platser är upplåsta i den här mobilen
+
 function spara() {
   try {
     localStorage.setItem('laddkollen', JSON.stringify({
       current: $('current').value, target: $('target').value, battery: $('battery').value,
-      power: $('power').value, hh: $('hh').value, mm: $('mm').value, quarter: $('quarter').checked
+      power: $('power').value, hh: $('hh').value, mm: $('mm').value, quarter: $('quarter').checked,
+      plats: platsKey, privat: privat
     }));
   } catch (e) {}
 }
@@ -323,7 +350,28 @@ function ladda() {
     if (!s) return;
     for (const k of ['current', 'target', 'battery', 'power', 'hh', 'mm']) if (s[k] !== undefined) $(k).value = s[k];
     $('quarter').checked = !!s.quarter;
+    privat = !!s.privat;
+    if (s.plats && PLATSER[s.plats] && (PLATSER[s.plats].publik || privat)) platsKey = s.plats;
   } catch (e) {}
+}
+
+// Fyller platsväljaren och byter prisformel
+function visaPlatser() {
+  const sel = $('plats');
+  sel.innerHTML = '';
+  const synliga = Object.entries(PLATSER).filter(([, p]) => p.publik || privat);
+  for (const [k, p] of synliga) sel.add(new Option(p.namn, k));
+  $('platsWrap').hidden = synliga.length < 2;
+  sel.value = platsKey;
+}
+function valjPlats(k) {
+  if (!PLATSER[k]) return;
+  platsKey = k;
+  PRIS = PLATSER[k];
+  $('plats').value = k;
+  $('underrubrik').textContent = 'Billigaste laddstart – ' + PRIS.namn + ' (SE3)';
+  $('prisBeskrivning').textContent = PRIS.beskrivning;
+  document.title = 'Laddkollen – ' + PRIS.namn;
 }
 
 // Väljer det alternativ i en lista som har samma talvärde, eller lägger till ett nytt.
@@ -346,6 +394,12 @@ function lasLank() {
     const v = Number(String(p.get(k)).replace(',', '.'));
     return isFinite(v) ? v : null;
   };
+  const plats = (p.get('plats') || '').toLowerCase();
+  if (PLATSER[plats]) {
+    privat = true;   // plats i länken kommer bara från din egen Home Assistant
+    platsKey = plats;
+    spara();
+  }
   const soc = tal('soc'), target = tal('target'), battery = tal('battery'), power = tal('power');
   if (soc === null && target === null && battery === null && power === null) return;
   if (soc !== null) $('current').value = Math.round(Math.min(100, Math.max(0, soc)));
@@ -353,7 +407,8 @@ function lasLank() {
   if (battery !== null && battery > 0) $('battery').value = Math.round(battery * 10) / 10;
   if (power !== null && power > 0) valjTal($('power'), power, String(power).replace('.', ',') + ' kW');
   if (soc !== null) {
-    $('haInfo').textContent = '🔌 Laddnivå ' + Math.round(soc) + ' % hämtad från bilen via Home Assistant kl ' + fmtTime.format(new Date()) + '.';
+    $('haInfo').textContent = '🔌 Laddnivå ' + Math.round(soc) + ' % hämtad från bilen via Home Assistant kl ' + fmtTime.format(new Date()) +
+      (PLATSER[plats] ? ' – laddplats ' + PLATSER[plats].namn + '.' : '.');
     $('haInfo').hidden = false;
   }
   spara();
@@ -531,6 +586,9 @@ function init() {
   $('hh').value = 22; $('mm').value = 0;
   ladda();
   lasLank();
+  visaPlatser();
+  valjPlats(platsKey);
+  $('plats').addEventListener('change', () => { valjPlats($('plats').value); spara(); rakna(); });
 
   document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
     const inp = $(b.dataset.for);

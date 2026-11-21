@@ -4,6 +4,15 @@ Alla viktiga ändringar i Laddkollen dokumenteras här.
 Formatet följer [Keep a Changelog](https://keepachangelog.com/sv/1.1.0/)
 och versionerna följer [Semantisk versionering](https://semver.org/lang/sv/).
 
+## [1.4.0] – 2026-11-21
+### Tillagt
+- Stöd för flera laddplatser med egen prisformel: Herrgårdsbacken (BRF) och Carintorpet (Mälarenergi).
+- Platsen kan skickas med i länken: `&plats=carintorpet` eller `&plats=herrgardsbacken`.
+- Platsväljare högst upp. Privata platser visas bara i en mobil där de låsts upp via länken, aldrig för grannarna.
+
+### Ändrat
+- Prisbeskrivningen längst ner och underrubriken följer vald plats.
+
 ## [1.3.0] – 2026-11-21
 ### Tillagt
 - Laddkollen kan ta emot värden i länken: `?soc=80&target=100&battery=74&power=11`.
