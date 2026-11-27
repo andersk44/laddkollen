@@ -83,6 +83,17 @@
   .timepick { display: flex; align-items: center; gap: 8px; border: 2px solid var(--blue); border-radius: 12px; padding: 10px; }
   .timepick select { font-size: 1.6rem; text-align: center; color: #424242; }
   .timepick span { font-size: 1.6rem; font-weight: 700; color: #424242; }
+  .timepick .kl { font-size: 1.1rem; font-weight: 400; color: var(--muted); }
+  .timepick.tomorrow { border-color: var(--orange); background: rgba(230, 126, 34, 0.08); }
+  .dagval { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .dagval button {
+    font: inherit; font-weight: 700; padding: 10px 6px; border-radius: 12px;
+    border: 2px solid var(--line); background: #fff; color: var(--text);
+  }
+  .dagval button small { display: block; font-weight: 400; font-size: 0.85rem; opacity: 0.85; }
+  .dagval button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .dagval button.on.tomorrow { background: var(--orange); border-color: var(--orange); }
+  #chosenInfo.tomorrow { color: var(--orange); font-weight: 700; }
   .chosen { margin: 12px 0 0; }
   .chosen b { font-size: 1.3rem; }
   .status { color: var(--muted); font-size: 0.9rem; margin: 8px 0 0; }
@@ -158,8 +169,13 @@
   </section>
 
   <section class="card">
-    <h2>Jag vill starta laddning kl</h2>
-    <div class="timepick">
+    <h2>Jag vill starta laddning</h2>
+    <div class="dagval" role="group" aria-label="Dag">
+      <button type="button" id="dag0" data-dag="0">Idag<small id="dag0txt"></small></button>
+      <button type="button" id="dag1" data-dag="1">I morgon<small id="dag1txt"></small></button>
+    </div>
+    <div class="timepick" id="timepick">
+      <span class="kl">kl</span>
       <select id="hh" aria-label="Timme"></select><span>:</span><select id="mm" aria-label="Minut"></select>
     </div>
     <p class="chosen">Beräknad kostnad: <b id="chosenCost">–</b><br>
@@ -199,7 +215,7 @@
     <span id="prisBeskrivning">Laddpris = spotpris + nät, skatt, moms och BRF-påslag.</span><br>
     Dina uppgifter sparas bara i din egen mobil.<br>
     <a href="https://www.elprisetjustnu.se" target="_blank" rel="noopener">Elpriser tillhandahålls av Elpriset just nu.se</a><br>
-    <a href="https://github.com/andersk44/laddkollen/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Laddkollen v1.4.0</a>
+    <a href="https://github.com/andersk44/laddkollen/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Laddkollen v1.5.0</a>
   </footer>
 </main>
 
@@ -324,12 +340,34 @@ function lasInput() {
   return { current, target, battery, power, toBattery, fromCharger, durationS };
 }
 
-function valdStart() {
-  const now = new Date();
-  const d = new Date(now);
+// Vald startdag: 0 = idag, 1 = i morgon
+let dagOffset = 0;
+const fmtKortDag = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'numeric' });
+
+function startFor(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
   d.setHours(Number($('hh').value), Number($('mm').value), 0, 0);
-  if (d <= now) d.setDate(d.getDate() + 1);
-  return d.getTime() / 1000;
+  return d;
+}
+function valdStart() {
+  // Ett klockslag idag som redan passerat betyder i morgon
+  if (dagOffset === 0 && startFor(0) <= new Date()) dagOffset = 1;
+  visaDag();
+  return startFor(dagOffset).getTime() / 1000;
+}
+function visaDag() {
+  const imorgon = dagOffset === 1;
+  for (const i of [0, 1]) {
+    const b = $('dag' + i);
+    b.classList.toggle('on', dagOffset === i);
+    b.classList.toggle('tomorrow', i === 1);
+    b.setAttribute('aria-pressed', dagOffset === i ? 'true' : 'false');
+    const d = new Date(); d.setDate(d.getDate() + i);
+    $('dag' + i + 'txt').textContent = fmtKortDag.format(d);
+  }
+  $('timepick').classList.toggle('tomorrow', imorgon);
+  $('chosenInfo').classList.toggle('tomorrow', imorgon);
 }
 
 let platsKey = 'herrgardsbacken';
@@ -451,9 +489,11 @@ function rakna() {
   const vs = valdStart();
   const vk = kostnad(prices, vs, inp.durationS, inp.power);
   $('chosenCost').textContent = vk === null ? (inp.durationS > 0 ? 'priser saknas än' : '–') : kr(vk);
-  const vsTxt = visaTid(vs).text;
+  const vsDate = new Date(vs * 1000);
+  const dagord = dagOffset === 1 ? '⚠ I MORGON ' : 'Idag ';
   $('chosenInfo').textContent = inp.durationS > 0
-    ? 'Start ' + vsTxt.toLowerCase() + ', klar ca ' + fmtTime.format(new Date((vs + inp.durationS) * 1000))
+    ? dagord + fmtKortDag.format(vsDate) + ' kl ' + fmtTime.format(vsDate) +
+      ', klar ca ' + fmtTime.format(new Date((vs + inp.durationS) * 1000))
     : '';
 
   ritaDiagram(prices, opt.best, inp.durationS, nowS);
@@ -582,13 +622,14 @@ async function hamtaPriser() {
 
 function init() {
   for (let h = 0; h < 24; h++) $('hh').add(new Option(String(h).padStart(2, '0'), h));
-  for (const m of [0, 15, 30, 45]) $('mm').add(new Option(String(m).padStart(2, '0'), m));
+  for (let m = 0; m < 60; m += 5) $('mm').add(new Option(String(m).padStart(2, '0'), m));
   $('hh').value = 22; $('mm').value = 0;
   ladda();
   lasLank();
   visaPlatser();
   valjPlats(platsKey);
   $('plats').addEventListener('change', () => { valjPlats($('plats').value); spara(); rakna(); });
+  visaDag();
 
   document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
     const inp = $(b.dataset.for);
@@ -601,12 +642,17 @@ function init() {
   });
   $('useBest').addEventListener('click', () => {
     if (lastBest === null) return;
-    // Avrunda uppåt till närmaste kvart så att starten aldrig hamnar före billigaste tid.
-    const q = Math.ceil(lastBest / 900) * 900;
+    // Avrunda uppåt till närmaste 5 minuter så att starten aldrig hamnar före billigaste tid.
+    const q = Math.ceil(lastBest / 300) * 300;
     const d = new Date(q * 1000);
     $('hh').value = d.getHours(); $('mm').value = d.getMinutes();
+    dagOffset = dagStr(d) === dagStr(new Date()) ? 0 : 1;
     spara(); rakna();
+    if ($('timepick').scrollIntoView) $('timepick').scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
+  for (const i of [0, 1]) {
+    $('dag' + i).addEventListener('click', () => { dagOffset = i; rakna(); });
+  }
 
   hamtaPriser();
   setInterval(hamtaPriser, 15 * 60 * 1000);

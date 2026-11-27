@@ -4,6 +4,17 @@ Alla viktiga ändringar i Laddkollen dokumenteras här.
 Formatet följer [Keep a Changelog](https://keepachangelog.com/sv/1.1.0/)
 och versionerna följer [Semantisk versionering](https://semver.org/lang/sv/).
 
+## [1.5.0] – 2026-11-27
+### Tillagt
+- Dagval "Idag / I morgon" med veckodag och datum ovanför klockslaget.
+- Orange markering av klockslaget och texten när starten är i morgon.
+- Minuter i 5-minuterssteg i stället för kvartar.
+
+### Rättat
+- "Välj billigaste starttid" satte bara klockslaget. Om billigaste start var i morgon kväll
+  tolkades tiden som idag, med fel kostnad som följd. Nu sätts även rätt dag.
+- Billigaste start avrundas till närmaste 5 minuter (tidigare kvart), så kostnaden ligger närmare den beräknade.
+
 ## [1.4.0] – 2026-11-21
 ### Tillagt
 - Stöd för flera laddplatser med egen prisformel: Herrgårdsbacken (BRF) och Carintorpet (Mälarenergi).
